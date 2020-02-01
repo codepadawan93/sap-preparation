@@ -133,8 +133,14 @@ public class SAPPreparation {
 		writeFile(outFile, output);
 	}
 	
-	private static void decryptECB(String key) {
-		//
+	private static void decryptECB(String file, String outFile, String key) throws IOException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException {
+		byte [] content = Files.readAllBytes(Paths.get(file));
+		byte [] keyBytes = key.getBytes();
+		Cipher cipher = Cipher.getInstance("AES/ECB/NoPadding");
+		SecretKeySpec secret = new SecretKeySpec(keyBytes, "AES");
+		cipher.init(Cipher.DECRYPT_MODE, secret);
+		byte[] output = cipher.doFinal(content);
+		writeFile(outFile, output);
 	}
 	
 	private static void rsa() {
@@ -186,9 +192,9 @@ public class SAPPreparation {
 			
 			// AES
 			System.out.println("Encrypting with ECB...");
-			encryptCBC(FILE_IN, FILE_ECB_ENC, "password12345678");
+			encryptECB(FILE_IN, FILE_ECB_ENC, "password12345678");
 			System.out.println("Decrypting with ECB...");
-			decryptCBC(FILE_ECB_ENC, FILE_ECB_DEC, "password12345678");
+			decryptECB(FILE_ECB_ENC, FILE_ECB_DEC, "password12345678");
 			System.out.println("Encrypting with CBC...");
 			encryptCBC(FILE_IN, FILE_CBC_ENC, "password12345678");
 			System.out.println("Decrypting with CBC...");
