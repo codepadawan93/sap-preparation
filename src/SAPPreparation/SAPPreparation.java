@@ -1,5 +1,6 @@
 package SAPPreparation;
 
+import java.security.Key;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.File;
@@ -16,7 +17,9 @@ import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.security.PrivateKey;
 import java.security.PublicKey;
+import java.security.UnrecoverableKeyException;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
@@ -27,6 +30,7 @@ import java.util.Random;
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.KeyGenerator;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
@@ -38,11 +42,13 @@ public class SAPPreparation {
 	private static final String FILE_ECB_DEC = "ecb.plain.txt";
 	private static final String FILE_CBC_ENC = "cbc.cipher.txt";
 	private static final String FILE_CBC_DEC = "cbc.plain.txt";
-	private static final String ALG_AES = "AES";
-	private static final String CERT_FILE = "ISMExamCert.cer";
-	private static final String FILE_KEYSTORE = "examkeystore.ks";
-	private static final String PASS_KEYSTORE = "Secret1234ABCDEF";
+	private static final String FILE_RSA_ENC = "rsa.cipher.txt";
+	private static final String FILE_RSA_DEC = "rsa.plain.txt";
+	private static final String FILE_CERT = "ISMExamCert.cer";
+	private static final String FILE_KEYSTORE = "ismkeystore.ks";
+	private static final String PASS_KEYSTORE = "passks";
 	
+	// Utility functions
 	private static void printHex(byte [] bytes) {
 		for(byte b : bytes) {
 			System.out.printf("%02x", b);
@@ -56,6 +62,14 @@ public class SAPPreparation {
 		out.close();
 	}
 	
+	private static byte [] getNewKey(int len) throws NoSuchAlgorithmException {
+		KeyGenerator keygen = KeyGenerator.getInstance("AES");
+		keygen.init(len);
+		return keygen.generateKey().getEncoded();
+	}
+	
+	
+	// Hashes
 	private static void md5(String file) throws NoSuchAlgorithmException, IOException {
 		MessageDigest md5 = MessageDigest.getInstance("MD5");
 		byte [] content = Files.readAllBytes(Paths.get(file));
@@ -80,6 +94,7 @@ public class SAPPreparation {
 		System.out.println(DatatypeConverter.printHexBinary(hash));
 	}
 	
+	// AES 
 	private static void encryptCBC(String file, String outFile, String key) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, InvalidAlgorithmParameterException, IllegalBlockSizeException, BadPaddingException, IOException {
 		byte [] content = Files.readAllBytes(Paths.get(file));
 		byte [] keyBytes = key.getBytes();
@@ -143,69 +158,122 @@ public class SAPPreparation {
 		writeFile(outFile, output);
 	}
 	
-	private static void rsa() {
-		// TODO implement rsa
-	}
 	
-	private static void x509seeKeyStore() throws NoSuchAlgorithmException, CertificateException, IOException, KeyStoreException {
-		FileInputStream file = new FileInputStream(new File(FILE_KEYSTORE));
+	// X.509
+	private static void x509seeKeyStore(String fileName, String pass) throws NoSuchAlgorithmException, CertificateException, IOException, KeyStoreException {
+		FileInputStream file = new FileInputStream(new File(fileName));
 		
 		KeyStore keyStore = KeyStore.getInstance("JKS");
-		keyStore.load(file, PASS_KEYSTORE.toCharArray());
+		keyStore.load(file, pass.toCharArray());
 		
 		//print the content
 		Enumeration<String> aliases =  keyStore.aliases();
 		while(aliases.hasMoreElements()) {
 			String alias = aliases.nextElement();
-			
-			System.out.println("Keystore entry: " + alias);
-			
+			String nature = "other";
 			if(keyStore.isKeyEntry(alias)) {
-				System.out.println("It's a priv & pub key entry");
+				nature = "key pair";
 			}
-			
 			if(keyStore.isCertificateEntry(alias)) {
-				System.out.println("It's just a certificate");
+				nature = "certificate";
 			}
+			System.out.println(String.format("alias=%s, nature=%s", alias, nature));
 		}
-		
 		file.close();
 	}
 	
 	
-	private static PublicKey x509getPublicKey() throws CertificateException, FileNotFoundException {
+	private static PublicKey x509getCertificateKey(String fileName) throws CertificateException, FileNotFoundException {
 		CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
-		X509Certificate cert = (X509Certificate) certFactory.generateCertificate(new FileInputStream(CERT_FILE));
+		X509Certificate cert = (X509Certificate) certFactory.generateCertificate(new FileInputStream(fileName));
 		return cert.getPublicKey();
 	}
 	
+	// RSA
+	private static void encryptRSA(String file, String outFile, Key key) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IOException, IllegalBlockSizeException, BadPaddingException {
+		byte [] contents = Files.readAllBytes(Paths.get(file));
+		Cipher cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
+		cipher.init(Cipher.ENCRYPT_MODE, key);
+		byte [] output = cipher.doFinal(contents);
+		printHex(output);
+		writeFile(outFile, output);
+	}
+	
+	private static void decryptRSA(String file, String outFile, Key key) throws IOException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException {
+		byte [] contents = Files.readAllBytes(Paths.get(file));
+		Cipher cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
+		cipher.init(Cipher.DECRYPT_MODE, key);
+		byte [] output = cipher.doFinal(contents);
+		printHex(output);
+		writeFile(outFile, output);
+	}
+	
+	private static PublicKey keyStoreGetPublicKey(String fileName, String pass, String alias) throws UnrecoverableKeyException, KeyStoreException, NoSuchAlgorithmException, CertificateException, IOException {
+		FileInputStream file = new FileInputStream(fileName);
+		KeyStore keyStore = KeyStore.getInstance("JKS");
+		keyStore.load(file, pass.toCharArray());
+		file.close();
+		return (PublicKey) keyStore.getCertificate(alias).getPublicKey();
+	}
+	
+	private static PrivateKey keyStoreGetPrivateKey(String fileName, String pass, String alias, String keyPass) throws UnrecoverableKeyException, KeyStoreException, NoSuchAlgorithmException, CertificateException, IOException {
+		FileInputStream file = new FileInputStream(fileName);
+		KeyStore keyStore = KeyStore.getInstance("JKS");
+		keyStore.load(file, pass.toCharArray());
+		file.close();
+		return (PrivateKey) keyStore.getKey(alias, keyPass.toCharArray());
+	}
 	
 	public static void main(String[] args) {
 		try {
 			// Hashes/HMACs
 			System.out.println("MD5: ");
 			md5(FILE_IN);
+			
 			System.out.println("SHA1: ");
 			sha1(FILE_IN);
+			
 			System.out.println("SHA256: ");
 			sha256(FILE_IN);
 			
 			// AES
 			System.out.println("Encrypting with ECB...");
 			encryptECB(FILE_IN, FILE_ECB_ENC, "password12345678");
+			
 			System.out.println("Decrypting with ECB...");
 			decryptECB(FILE_ECB_ENC, FILE_ECB_DEC, "password12345678");
+			
 			System.out.println("Encrypting with CBC...");
 			encryptCBC(FILE_IN, FILE_CBC_ENC, "password12345678");
+			
 			System.out.println("Decrypting with CBC...");
 			decryptCBC(FILE_CBC_ENC, FILE_CBC_DEC, "password12345678");
 			
-			// RSA
-			
 			// X.509
 			System.out.print("Keystore ");
-//			x509seeKeyStore();
-//			System.out.println(x509getPublicKey());
+			x509seeKeyStore(FILE_KEYSTORE, PASS_KEYSTORE);
+			
+			// RSA
+			PublicKey certKey = x509getCertificateKey(FILE_CERT);
+			System.out.println(certKey);
+			
+			PublicKey pub = keyStoreGetPublicKey(FILE_KEYSTORE, PASS_KEYSTORE, "ismkey1");
+			System.out.println(pub);
+			
+			PrivateKey priv = keyStoreGetPrivateKey(FILE_KEYSTORE, PASS_KEYSTORE, "ismkey1", "passism1");
+			System.out.println(priv);
+			
+			System.out.println("Encrypting with RSA...");
+			encryptRSA(FILE_IN, FILE_RSA_ENC, pub);
+			
+			System.out.println("Decrypting with RSA...");
+			decryptRSA(FILE_RSA_ENC, FILE_RSA_DEC, priv);
+			
+			// Signature
+			byte [] key = getNewKey(128);
+			printHex(key);
+			
+			// TODO:: signature has to be done too
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
