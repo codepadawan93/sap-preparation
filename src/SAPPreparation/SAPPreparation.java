@@ -1,7 +1,6 @@
 package SAPPreparation;
 
 import java.security.Key;
-import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -9,7 +8,6 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
@@ -19,14 +17,14 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
+import java.security.Signature;
+import java.security.SignatureException;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
-import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.Random;
-
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
@@ -37,18 +35,19 @@ import javax.crypto.spec.SecretKeySpec;
 import javax.xml.bind.DatatypeConverter;
 
 public class SAPPreparation {
-	private static final String FILE_IN = "test.txt";
-	private static final String FILE_ECB_ENC = "ecb.cipher.txt";
-	private static final String FILE_ECB_DEC = "ecb.plain.txt";
-	private static final String FILE_CBC_ENC = "cbc.cipher.txt";
-	private static final String FILE_CBC_DEC = "cbc.plain.txt";
-	private static final String FILE_RSA_ENC = "rsa.cipher.txt";
-	private static final String FILE_RSA_DEC = "rsa.plain.txt";
-	private static final String FILE_CERT = "ISMExamCert.cer";
+	private static final String FILE_IN       = "test.txt";
+	private static final String FILE_ECB_ENC  = "ecb.cipher.txt";
+	private static final String FILE_ECB_DEC  = "ecb.plain.txt";
+	private static final String FILE_CBC_ENC  = "cbc.cipher.txt";
+	private static final String FILE_CBC_DEC  = "cbc.plain.txt";
+	private static final String FILE_RSA_ENC  = "rsa.cipher.txt";
+	private static final String FILE_RSA_DEC  = "rsa.plain.txt";
+	private static final String FILE_CERT     = "ISMExamCert.cer";
 	private static final String FILE_KEYSTORE = "ismkeystore.ks";
 	private static final String PASS_KEYSTORE = "passks";
+	private static final String PASS_AES      = "password12345678";
 	
-	// Utility functions
+	// Convenience methods
 	private static void printHex(byte [] bytes) {
 		for(byte b : bytes) {
 			System.out.printf("%02x", b);
@@ -70,29 +69,30 @@ public class SAPPreparation {
 	
 	
 	// Hashes
-	private static void md5(String file) throws NoSuchAlgorithmException, IOException {
+	private static byte [] md5(String file) throws NoSuchAlgorithmException, IOException {
 		MessageDigest md5 = MessageDigest.getInstance("MD5");
 		byte [] content = Files.readAllBytes(Paths.get(file));
 		md5.update(content, 0, content.length);
 		byte [] hash = md5.digest();
-		System.out.println(DatatypeConverter.printHexBinary(hash));
+		return hash;
 	}
 	
-	private static void sha1(String file) throws NoSuchAlgorithmException, IOException {
+	private static byte [] sha1(String file) throws NoSuchAlgorithmException, IOException {
 		MessageDigest sha1 = MessageDigest.getInstance("SHA-1");
 		byte [] content = Files.readAllBytes(Paths.get(file));
 		sha1.update(content, 0, content.length);
 		byte [] hash = sha1.digest();
-		System.out.println(DatatypeConverter.printHexBinary(hash));
+		return hash;
 	}
 	
-	private static void sha256(String file) throws IOException, NoSuchAlgorithmException {
+	private static byte [] sha256(String file) throws IOException, NoSuchAlgorithmException {
 		MessageDigest sha256 = MessageDigest.getInstance("SHA-256");
 		byte [] content = Files.readAllBytes(Paths.get(file));
 		sha256.update(content, 0, content.length);
 		byte [] hash = sha256.digest();
-		System.out.println(DatatypeConverter.printHexBinary(hash));
+		return hash;
 	}
+	
 	
 	// AES 
 	private static void encryptCBC(String file, String outFile, String key) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, InvalidAlgorithmParameterException, IllegalBlockSizeException, BadPaddingException, IOException {
@@ -123,11 +123,12 @@ public class SAPPreparation {
 		byte [] keyBytes = key.getBytes();
 		byte [] iv = new byte [keyBytes.length];
 		byte [] payloadContent = new byte[content.length - iv.length];
-		int i = 0;
-		for(; i < iv.length; i++) {
+		// Read IV first - first 16 bytes of file
+		for(int i = 0; i < iv.length; i++) {
 			iv[i] = content[i];
 		}
-		for(; i < content.length; i++) {
+		// Rest is payload
+		for(int i = iv.length; i < content.length; i++) {
 			payloadContent[i - iv.length] = content[i];
 		}
 		Cipher cipher = Cipher.getInstance("AES/CBC/NoPadding");
@@ -160,9 +161,8 @@ public class SAPPreparation {
 	
 	
 	// X.509
-	private static void x509seeKeyStore(String fileName, String pass) throws NoSuchAlgorithmException, CertificateException, IOException, KeyStoreException {
+	private static void printKeyStore(String fileName, String pass) throws NoSuchAlgorithmException, CertificateException, IOException, KeyStoreException {
 		FileInputStream file = new FileInputStream(new File(fileName));
-		
 		KeyStore keyStore = KeyStore.getInstance("JKS");
 		keyStore.load(file, pass.toCharArray());
 		
@@ -170,24 +170,25 @@ public class SAPPreparation {
 		Enumeration<String> aliases =  keyStore.aliases();
 		while(aliases.hasMoreElements()) {
 			String alias = aliases.nextElement();
-			String nature = "other";
+			String type = "other";
 			if(keyStore.isKeyEntry(alias)) {
-				nature = "key pair";
+				type = "key pair";
+			} else if(keyStore.isCertificateEntry(alias)) {
+				type = "certificate";
 			}
-			if(keyStore.isCertificateEntry(alias)) {
-				nature = "certificate";
-			}
-			System.out.println(String.format("alias=%s, nature=%s", alias, nature));
+			System.out.println(String.format("alias=%s, nature=%s", alias, type));
 		}
 		file.close();
 	}
 	
 	
-	private static PublicKey x509getCertificateKey(String fileName) throws CertificateException, FileNotFoundException {
+	private static PublicKey getCertificateKey(String fileName) throws CertificateException, FileNotFoundException {
+		FileInputStream file = new FileInputStream(new File(fileName));
 		CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
-		X509Certificate cert = (X509Certificate) certFactory.generateCertificate(new FileInputStream(fileName));
+		X509Certificate cert = (X509Certificate) certFactory.generateCertificate(file);
 		return cert.getPublicKey();
 	}
+	
 	
 	// RSA
 	private static void encryptRSA(String file, String outFile, Key key) throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IOException, IllegalBlockSizeException, BadPaddingException {
@@ -209,7 +210,7 @@ public class SAPPreparation {
 	}
 	
 	private static PublicKey keyStoreGetPublicKey(String fileName, String pass, String alias) throws UnrecoverableKeyException, KeyStoreException, NoSuchAlgorithmException, CertificateException, IOException {
-		FileInputStream file = new FileInputStream(fileName);
+		FileInputStream file = new FileInputStream(new File(fileName));
 		KeyStore keyStore = KeyStore.getInstance("JKS");
 		keyStore.load(file, pass.toCharArray());
 		file.close();
@@ -217,44 +218,68 @@ public class SAPPreparation {
 	}
 	
 	private static PrivateKey keyStoreGetPrivateKey(String fileName, String pass, String alias, String keyPass) throws UnrecoverableKeyException, KeyStoreException, NoSuchAlgorithmException, CertificateException, IOException {
-		FileInputStream file = new FileInputStream(fileName);
+		FileInputStream file = new FileInputStream(new File(fileName));
 		KeyStore keyStore = KeyStore.getInstance("JKS");
 		keyStore.load(file, pass.toCharArray());
 		file.close();
 		return (PrivateKey) keyStore.getKey(alias, keyPass.toCharArray());
 	}
 	
+	
+	// Signature
+	private static byte [] getSignature(String fileName, PrivateKey priv) throws NoSuchAlgorithmException, InvalidKeyException, SignatureException, IOException {
+		// To make sure the file is yours, sign it with your private key
+		Signature signature = Signature.getInstance("SHA1withRSA");
+		signature.initSign(priv);
+		byte[] contents = Files.readAllBytes(Paths.get(fileName));
+		signature.update(contents, 0, contents.length);
+		return signature.sign();
+	}
+	
+	private static boolean verifySignature(String fileName, PublicKey pub, byte [] signature) throws NoSuchAlgorithmException, InvalidKeyException, IOException, SignatureException {
+		// To verify file was signed by you, one will validate with
+		// your public key
+		Signature verifier = Signature.getInstance("SHA1withRSA");
+		verifier.initVerify(pub);
+		byte[] contents = Files.readAllBytes(Paths.get(fileName));
+		verifier.update(contents, 0, contents.length);
+		return verifier.verify(signature);
+	}
+	
 	public static void main(String[] args) {
 		try {
 			// Hashes/HMACs
 			System.out.println("MD5: ");
-			md5(FILE_IN);
+			byte [] md5 = md5(FILE_IN);
+			printHex(md5);
 			
 			System.out.println("SHA1: ");
-			sha1(FILE_IN);
+			byte [] sha1 = sha1(FILE_IN);
+			printHex(sha1);
 			
 			System.out.println("SHA256: ");
-			sha256(FILE_IN);
+			byte [] sha256 = sha256(FILE_IN);
+			printHex(sha256);
 			
 			// AES
 			System.out.println("Encrypting with ECB...");
-			encryptECB(FILE_IN, FILE_ECB_ENC, "password12345678");
+			encryptECB(FILE_IN, FILE_ECB_ENC, PASS_AES);
 			
 			System.out.println("Decrypting with ECB...");
-			decryptECB(FILE_ECB_ENC, FILE_ECB_DEC, "password12345678");
+			decryptECB(FILE_ECB_ENC, FILE_ECB_DEC, PASS_AES);
 			
 			System.out.println("Encrypting with CBC...");
-			encryptCBC(FILE_IN, FILE_CBC_ENC, "password12345678");
+			encryptCBC(FILE_IN, FILE_CBC_ENC, PASS_AES);
 			
 			System.out.println("Decrypting with CBC...");
-			decryptCBC(FILE_CBC_ENC, FILE_CBC_DEC, "password12345678");
+			decryptCBC(FILE_CBC_ENC, FILE_CBC_DEC, PASS_AES);
 			
 			// X.509
 			System.out.print("Keystore ");
-			x509seeKeyStore(FILE_KEYSTORE, PASS_KEYSTORE);
+			printKeyStore(FILE_KEYSTORE, PASS_KEYSTORE);
 			
 			// RSA
-			PublicKey certKey = x509getCertificateKey(FILE_CERT);
+			PublicKey certKey = getCertificateKey(FILE_CERT);
 			System.out.println(certKey);
 			
 			PublicKey pub = keyStoreGetPublicKey(FILE_KEYSTORE, PASS_KEYSTORE, "ismkey1");
@@ -272,6 +297,13 @@ public class SAPPreparation {
 			// Signature
 			byte [] key = getNewKey(128);
 			printHex(key);
+			
+			byte [] signature = getSignature(FILE_IN, priv);
+			if(verifySignature(FILE_IN, pub, signature)) {
+				System.out.println("Verified!");
+			} else {
+				System.out.println("Verification failed!");
+			}
 			
 			// TODO:: signature has to be done too
 		} catch (Exception e) {
