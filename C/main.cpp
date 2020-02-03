@@ -3,6 +3,9 @@
 #include <openssl/md5.h>
 #include <openssl/sha.h>
 #include <openssl/aes.h>
+#include <openssl/applink.c>
+#include <openssl/rsa.h>
+#include <openssl/pem.h>
 
 namespace SAPPreparation {
 	// convenience functions
@@ -123,10 +126,20 @@ namespace SAPPreparation {
 		writeFile(outFile, output);
 	}
 
-	void encryptRSA(const char * fileName, const char * outFile, unsigned char * key) { 
-	}
-
-	void decryptRSA(const char * fileName, const char * outFile, unsigned char * key) { 
+	unsigned char * decryptRSA(const char * fileName, const char * pemFile) {
+		int length = 0;
+		char * contents = readFile(fileName, length);
+		RSA* publicKey;
+		publicKey = RSA_new();
+		FILE* pem;
+		pem = fopen(pemFile, "r");
+		unsigned char* output = new unsigned char[5000];
+		if (pem) {
+			publicKey = PEM_read_RSAPublicKey(pem, NULL, NULL, NULL);
+			RSA_public_decrypt(RSA_size(publicKey), (const unsigned char *)contents, output, publicKey, RSA_PKCS1_PADDING);
+			fclose(pem);
+		}
+		return output;
 	}
 }
 
@@ -152,5 +165,13 @@ int main() {
 	unsigned char iv[16] = { 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01 };
 	SAPPreparation::encryptCBC("test.txt", "cbc.enc.txt", key, iv);
 	SAPPreparation::decryptCBC("cbc.enc.txt", "cbc.dec.txt", key, iv);
+	
+	unsigned char * messageDigest1 = SAPPreparation::decryptRSA("eSignSHA1.txt", "pubKeyFile.pem");
+	std::cout << "\nRSA: ";
+	SAPPreparation::printHex(messageDigest1, SHA_DIGEST_LENGTH);
+
+	unsigned char * messageDigest2 = SAPPreparation::sha1("Message.txt");
+	std::cout << "\nDIGEST: ";
+	SAPPreparation::printHex(messageDigest2, SHA_DIGEST_LENGTH);
 	return 0;
 }
