@@ -41,9 +41,8 @@ public class SAPReExamProject {
 		byte[] contents = readFile(filename);
 		byte[] keyBytes = key.getBytes();
 		byte[] ivBytes = new byte[keyBytes.length];
-		Random random = new Random();
 		for(int i = 0; i < ivBytes.length; i++) {
-			ivBytes[i] = (byte) random.nextInt(7);
+			ivBytes[i] = (byte) 0x01;
 		}
 		Cipher cipher = Cipher.getInstance("AES/CBC/NoPadding");
 		IvParameterSpec ivSpec = new IvParameterSpec(ivBytes);
