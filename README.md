@@ -59,5 +59,43 @@ int main()
 
 ## Demo for Java
 ```java
-TODO
+package com.erko.sapPreparation.sapReExam;
+
+import java.security.MessageDigest;
+
+import javax.crypto.Cipher;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
+
+public class SapReExam {
+
+	public static void main(String[] args) {
+		String content = "Test text for using in this code";		
+		String key = "testpassword1234";
+		byte[] iv = {
+				0x01, 0x02, 0x04, 0x05, 0x01, 0x02, 0x04, 0x05,
+				0x01, 0x02, 0x04, 0x05, 0x01, 0x02, 0x04, 0x05 };
+		try {
+			MessageDigest md = MessageDigest.getInstance("SHA1");
+			md.update(content.getBytes());
+			byte[] digest = md.digest();
+			for(byte b : digest) {
+				System.out.printf("%02x", b);
+			}
+			
+			Cipher cipher = Cipher.getInstance("AES/CBC/NoPadding");
+			SecretKeySpec secret = new SecretKeySpec(key.getBytes(), "AES");
+			IvParameterSpec ivSpec = new IvParameterSpec(iv);
+			cipher.init(Cipher.ENCRYPT_MODE, secret, ivSpec);
+			byte[] ciphertext = cipher.doFinal(content.getBytes());
+			System.out.println("\n");
+			for(byte b : ciphertext) {
+				System.out.printf("%02x", b);
+			}
+			
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+}
 ```
