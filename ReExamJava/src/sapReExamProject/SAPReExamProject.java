@@ -40,6 +40,14 @@ public class SAPReExamProject {
 	private static byte[] doAesCbc(String filename, String key) throws IOException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, InvalidAlgorithmParameterException, IllegalBlockSizeException, BadPaddingException {
 		byte[] contents = readFile(filename);
 		byte[] keyBytes = key.getBytes();
+		if(contents.length % 16 != 0) {
+			byte[] paddedContents = new byte[(contents.length / 16) * 16 + 16];
+			System.arraycopy(contents, 0, paddedContents, 0, contents.length);
+			for(int i = contents.length; i < paddedContents.length; i++) {
+				paddedContents[i] = (byte) 0x0;
+			}
+			contents = paddedContents;
+		}
 		byte[] ivBytes = new byte[keyBytes.length];
 		for(int i = 0; i < ivBytes.length; i++) {
 			ivBytes[i] = (byte) 0x01;
