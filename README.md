@@ -99,3 +99,8 @@ public class SapReExam {
 	}
 }
 ```
+
+## Demo for keytool
+```bash
+keytool -genkey -keyalg RSA -alias <alias> -keystore <filename>.jks -storepass <keystore password> -keypass <keypair password>
+```
