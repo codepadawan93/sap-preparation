@@ -101,6 +101,15 @@ public class SapReExam {
 ```
 
 ## Demo for keytool
+
+Generate a JKS keystore with a keypair:
+
 ```bash
 keytool -genkey -keyalg RSA -alias <alias> -keystore <filename>.jks -storepass <keystore password> -keypass <keypair password>
+```
+
+Generate an X509 certificate from the JKS:
+
+```bash
+keytool -exportcert -alias <alias> -keystore <filename>.jks -file <output filename>.cer
 ```
