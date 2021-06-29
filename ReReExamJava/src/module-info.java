@@ -1,2 +1,2 @@
-module SAPReExamYear2_2 {
+module SAPReExamYear_2 {
 }
