@@ -49,7 +49,7 @@ He sent you that user password in an encrypted file (with a .user extension). Se
 know its SHA256 hash value in Base64 format.
 Print the designated file name at the console.
 PART II (5 points)
-Once you found the file, decrypt it (AES in CBC mode with a known IV - check the user’s file. There is
+Once you found the file, decrypt it (AES in CBC mode with a known IV - check the userâ€™s file. There is
 no need for Padding as the file has the required size) using the password sent by your friend (check
 the users.pdf file).
 The decrypted content represents the user password as a string with 16 characters.
@@ -68,10 +68,10 @@ the previous file.
 Send your colleague the binary files with the signature and your public certificate.
 To get points the digital signature must be validated for the previous file with your public key.
 Upload on Sakai
-• The .java file with your solution (only 1 file)
-• The binary file with the PBKDF hash value
-• The binary file with the digital signature of the previous file
-• The .cer file with your public key
+â€¢ The .java file with your solution (only 1 file)
+â€¢ The binary file with the PBKDF hash value
+â€¢ The binary file with the digital signature of the previous file
+â€¢ The .cer file with your public key
 * 
 */
 public class SAPReExamYear2 {
@@ -184,60 +184,60 @@ public class SAPReExamYear2 {
 		// List dir userFiles
 		String dir = "./userFiles";
 		File file = new File(dir);
-        String[] pathnames = file.list();
-        String foundFile = null;
+        	String[] pathnames = file.list();
+       		String foundFile = null;
         
-        // check sha against what we had
-        for (String pathname : pathnames) {
-        	String filePath = String.format("%s/%s", dir, pathname);
-            byte[] sha = doSha(filePath);
-            String b64 = byteArrTob64(sha);
-            if (mySha.equals(b64)) {
-            	foundFile = filePath;
-            	System.out.printf("%s is the right file\n", pathname);
-            }
-        }
+		// check sha against what we had
+		for (String pathname : pathnames) {
+			String filePath = String.format("%s/%s", dir, pathname);
+		    byte[] sha = doSha(filePath);
+		    String b64 = byteArrTob64(sha);
+		    if (mySha.equals(b64)) {
+			foundFile = filePath;
+			System.out.printf("%s is the right file\n", pathname);
+		    }
+		}
     
-        String password = null;
+       		String password = null;
         
-        if (foundFile != null) {
-        	byte [] decrypted = decryptAesCbc(foundFile, myKey, myIv);
-        	password = new String(decrypted, StandardCharsets.UTF_8);
-        	System.out.printf("%s is the password\n", password);
-        }
+        	if (foundFile != null) {
+        		byte [] decrypted = decryptAesCbc(foundFile, myKey, myIv);
+        		password = new String(decrypted, StandardCharsets.UTF_8);
+        		System.out.printf("%s is the password\n", password);
+        	}
         
-        // Generate hash
-        if (password != null) {
-        	int iterations = 150;
-            int size = 8 * 20;
+        	// Generate hash
+        	if (password != null) {
+        		int iterations = 150;
+            		int size = 8 * 20;
             
-            password = password + "ism2021";
-        	char[] chars = password.toCharArray();
-        	byte[] salt = "ism2021".getBytes();
+            		password = password + "ism2021";
+        		char[] chars = password.toCharArray();
+        		byte[] salt = "ism2021".getBytes();
         	
-            PBEKeySpec spec = new PBEKeySpec(chars, salt, iterations, size);
-            SecretKeyFactory skf = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1");
-            byte[] hash = skf.generateSecret(spec).getEncoded();
-            System.out.printf("hash obtained is: ");
-            printh(hash);
-            System.out.printf("\n");
-            writeFile("Erik.bin", hash);
+            		PBEKeySpec spec = new PBEKeySpec(chars, salt, iterations, size);
+            		SecretKeyFactory skf = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1");
+            		byte[] hash = skf.generateSecret(spec).getEncoded();
+            		System.out.printf("hash obtained is: ");
+            		printh(hash);
+            		System.out.printf("\n");
+            		writeFile("Erik.bin", hash);
             
-            printJks(myKeyStore, "changeit");
+            		printJks(myKeyStore, "changeit");
             
-            String kpAlias = "erik"; // Alias
-            String kpPassword = "changeit"; // Default password
+            		String kpAlias = "erik"; // Alias
+            		String kpPassword = "changeit"; // Default password
             
-            // Get our generated private key and sign our .bin file with it
-            PrivateKey priv = getPriv(myKeyStore, kpPassword, kpAlias, kpPassword);
-            byte[] signature = sign("Erik.bin", priv);
-            writeFile("Erik.sig", signature);
+            		// Get our generated private key and sign our .bin file with it
+            		PrivateKey priv = getPriv(myKeyStore, kpPassword, kpAlias, kpPassword);
+            		byte[] signature = sign("Erik.bin", priv);
+            		writeFile("Erik.sig", signature);
             
-            // Verify it too
-            PublicKey pub = getPub(myKeyStore, kpPassword, kpAlias);
-            if(verify("Erik.bin", pub, signature)) {
-            	System.out.println("Signature verified!");
-            }
-        }
+            		// Verify it too
+            		PublicKey pub = getPub(myKeyStore, kpPassword, kpAlias);
+            		if(verify("Erik.bin", pub, signature)) {
+            			System.out.println("Signature verified!");
+            		}
+        	}
 	}
 }
